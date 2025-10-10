@@ -12,3 +12,6 @@ docs/html
 
 linker.py
 
+.venv/
+
+.vscode/
