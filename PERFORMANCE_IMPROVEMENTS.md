@@ -98,11 +98,90 @@ for row in range(len(table)):
 ```
 **Impact**: Reduced table_cells_2_spans from 8.6s to negligible
 
-## Remaining Bottleneck
-**merge_all_cells.py** (5.2 seconds) - O(n²) algorithm that compares every cell with every other cell
-- For 861 cells, this is ~740,000 comparisons
-- Would require major algorithmic rewrite to fix
-- Currently acceptable performance for typical use cases
+## Remaining Bottleneck: merge_all_cells.py (5.2 seconds)
+
+### The Problem
+This function takes individual ASCII-art Cell objects and merges them into a final reStructuredText grid table. It's fundamentally O(n²) - for 861 cells, that's ~740,000 comparisons.
+
+**Current Algorithm:**
+```python
+while len(cells) > 1:
+    count = 0
+    while count < len(cells):
+        cell1 = cells[current]
+        cell2 = cells[count]
+        
+        merge_direction = get_merge_direction(cell1, cell2)
+        if not merge_direction == "NONE":
+            merge_cells(cell1, cell2, merge_direction)
+            cells.pop(count)  # Remove merged cell
+        else:
+            count += 1
+    current += 1
+```
+
+Each cell is compared against every other cell to find neighbors that can merge (based on position and compatible borders). When a match is found, cells are merged and the search continues.
+
+### Why It Needs a Big Rewrite
+
+**The Challenge:** This is a **graph assembly problem**, not a lookup problem. Each cell needs to find its spatial neighbors (LEFT, RIGHT, TOP, BOTTOM) and verify that their borders are compatible for merging.
+
+**Why Simple Caching Won't Work:**
+1. **Dynamic Position Changes**: After each merge, cell positions/sizes change. Cell A at position (3,5) might become (3,5-7) after merging with neighbors.
+2. **Border Compatibility**: Merging requires checking that borders align perfectly - a cell with 3 sections on the right can only merge with a cell having 3 sections on the left.
+3. **State Mutation**: The `cells` list is constantly modified (cells removed, cell.text updated) making pre-computed lookups invalid.
+4. **Order Dependency**: The algorithm intentionally processes cells in a specific order to build the table correctly.
+
+**What a Proper Fix Would Require:**
+
+1. **Spatial Index Data Structure**: Build a 2D grid index mapping (row, column) → cell
+   ```python
+   grid = {}  # (row, col) -> cell
+   for cell in cells:
+       for r in range(cell.row, cell.row + cell.row_count):
+           for c in range(cell.column, cell.column + cell.column_count):
+               grid[(r, c)] = cell
+   ```
+
+2. **Neighbor Lookup**: O(1) neighbor finding instead of O(n) scanning
+   ```python
+   def get_right_neighbor(cell):
+       next_col = cell.column + cell.column_count
+       return grid.get((cell.row, next_col))
+   ```
+
+3. **Incremental Updates**: Update the spatial index after each merge instead of rebuilding
+   - Remove old cell entries
+   - Add new merged cell entries
+   - Track which cells still need processing
+
+4. **Merge Queue**: Process merges in optimal order (e.g., left-to-right, top-to-bottom) to minimize re-checks
+   ```python
+   # Instead of comparing all cells with all cells
+   queue = sorted(cells, key=lambda c: (c.row, c.column))
+   while queue:
+       cell = queue.pop(0)
+       for direction in ['RIGHT', 'BOTTOM', 'LEFT', 'TOP']:
+           neighbor = get_neighbor(cell, direction)
+           if can_merge(cell, neighbor, direction):
+               merge_cells(cell, neighbor, direction)
+               update_spatial_index(cell, neighbor)
+               # Only re-check affected cells
+   ```
+
+**Estimated Complexity:**
+- Current: O(n²) - ~740,000 operations for 861 cells
+- With spatial index: O(n × k) where k = average neighbors per cell (~4)
+- Expected: ~3,444 operations - **215x fewer operations**
+
+**Why We Didn't Do It:**
+- Requires redesigning core algorithm logic (200+ lines of changes)
+- Current 5.2s is acceptable vs original 1000s
+- Risk of introducing bugs in complex spatial logic
+- Would need extensive testing for edge cases (irregular grids, overlapping spans, etc.)
+
+**Future Work:**
+If this bottleneck becomes critical, the spatial index approach would be the way to go. The algorithm itself is sound - it's just doing more work than necessary by rescanning the entire cell list for every comparison.
 
 ## Files Modified
 1. `dashtable/dashutils/get_span.py` - Direct comparison instead of list creation
