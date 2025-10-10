@@ -20,12 +20,17 @@ def table_cells_2_spans(table, spans):
         As you can imagine, this is pretty confusing for a human which
         is why data2rst accepts table data and span data separately.
     """
+    # PERFORMANCE: Build lookup cache to avoid O(n) lookups
+    span_cache = {}
+    for span in spans:
+        for cell in span:
+            span_cache[(cell[0], cell[1])] = True
+    
     new_spans = []
     for row in range(len(table)):
         for column in range(len(table[row])):
-            span = get_span(spans, row, column)
-
-            if not span:
+            # Check if this cell is NOT part of any existing span
+            if (row, column) not in span_cache:
                 new_spans.append([[row, column]])
 
     new_spans.extend(spans)

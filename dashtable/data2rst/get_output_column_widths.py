@@ -18,13 +18,19 @@ def get_output_column_widths(table, spans):
     widths : list of int
         The widths of each column in the output table
     """
+    # PERFORMANCE: Build lookup cache for get_span() to avoid O(n) lookups
+    span_cache = {}
+    for span in spans:
+        for cell in span:
+            span_cache[(cell[0], cell[1])] = span
+    
     widths = []
     for column in table[0]:
         widths.append(3)
 
     for row in range(len(table)):
         for column in range(len(table[row])):
-            span = get_span(spans, row, column)
+            span = span_cache.get((row, column))
             column_count = get_span_column_count(span)
 
             if column_count == 1:
@@ -39,7 +45,7 @@ def get_output_column_widths(table, spans):
 
     for row in range(len(table)):
         for column in range(len(table[row])):
-            span = get_span(spans, row, column)
+            span = span_cache.get((row, column))
             column_count = get_span_column_count(span)
 
             if column_count > 1:
@@ -56,14 +62,16 @@ def get_output_column_widths(table, spans):
 
                 length = get_longest_line_length(text)
 
-                while length > available_space:
+                # PERFORMANCE: Calculate shortage once instead of incrementing by 1
+                if length > available_space:
+                    shortage = length - available_space
+                    # Distribute shortage evenly across columns
+                    per_column = shortage // column_count
+                    remainder = shortage % column_count
+                    
                     for i in range(text_column, end_column):
-                        widths[i] += 1
-
-                        available_space = sum(
-                            widths[text_column:end_column])
-
-                        available_space += column_count - 1
-                        if length <= available_space:
-                            break
+                        widths[i] += per_column
+                        # Add 1 more to first 'remainder' columns
+                        if i - text_column < remainder:
+                            widths[i] += 1
     return widths

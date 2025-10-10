@@ -13,9 +13,12 @@ def get_span(spans, row, column):
     span : list of lists
         A span containing the [row, column] pair
     """
-    for i in range(len(spans)):
-        if [row, column] in spans[i]:
-            return spans[i]
-
+    # PERFORMANCE: Direct comparison instead of creating list and using 'in' operator
+    for span in spans:
+        for cell in span:
+            if cell[0] == row and cell[1] == column:
+                return span
+    
     return None
+
 
