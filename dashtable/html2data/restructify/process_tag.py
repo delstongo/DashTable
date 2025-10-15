@@ -10,6 +10,24 @@ def truncate_empties(lines):
     return lines
 
 
+def clean_text(text):
+    """
+    Remove problematic Unicode characters that cause alignment issues.
+    
+    Removes:
+    - U+200B: Zero-Width Space
+    - U+200C: Zero-Width Non-Joiner
+    - U+200D: Zero-Width Joiner  
+    - U+FEFF: Zero-Width No-Break Space (BOM)
+    """
+    # Remove zero-width spaces and similar characters
+    text = text.replace('\u200b', '')  # Zero-Width Space
+    text = text.replace('\u200c', '')  # Zero-Width Non-Joiner
+    text = text.replace('\u200d', '')  # Zero-Width Joiner
+    text = text.replace('\ufeff', '')  # Zero-Width No-Break Space
+    return text
+
+
 def process_tag(node):
     """
     Recursively go through a tag's children, converting them, then
@@ -22,7 +40,7 @@ def process_tag(node):
 
     for element in node.children:
         if isinstance(element, NavigableString):
-            text += element
+            text += clean_text(str(element))
         elif not node.name in exceptions:
             text += process_tag(element)
 
