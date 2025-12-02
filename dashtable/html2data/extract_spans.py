@@ -24,19 +24,19 @@ def extract_spans(html_string):
     if not table:
         return []
 
-    trs = table.findAll('tr')
+    trs = table.find_all('tr')
     if len(trs) == 0:
         return []
 
     spans = []
     for tr in range(len(trs)):
         if tr == 0:
-            ths = trs[tr].findAll('th')
+            ths = trs[tr].find_all('th')
             if len(ths) == 0:
-                ths = trs[tr].findAll('td')
+                ths = trs[tr].find_all('td')
             tds = ths
         else:
-            tds = trs[tr].findAll('td')
+            tds = trs[tr].find_all('td')
 
         column = 0
         for td in tds:
